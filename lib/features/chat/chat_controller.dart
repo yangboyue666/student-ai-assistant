@@ -190,14 +190,6 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
         assistantId,
       );
     }
-    } else {
-      fullText = await _streamAssistant(
-        PatternBasedLlmService(),
-        llmMessages,
-        allTools,
-        assistantId,
-      );
-    }
 
     // 5) 真实模型（nobodywho）内部已处理工具调用，直接显示文本
     if (usedRealModel) {
