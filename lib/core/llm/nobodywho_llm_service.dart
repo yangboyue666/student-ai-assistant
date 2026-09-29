@@ -282,18 +282,18 @@ class NobodyWhoLlmService implements LlmService {
     for (final m in messages) {
       switch (m.role) {
         case 'system':
-          out.add(nobodywho.Message.system(content: m.content));
+          out.add(nobodywho.systemMessage(m.content));
           break;
         case 'user':
-          out.add(nobodywho.Message.user(content: m.content));
+          out.add(nobodywho.userMessage(m.content));
           break;
         case 'assistant':
-          out.add(nobodywho.Message.assistant(content: m.content));
+          out.add(nobodywho.assistantMessage(m.content));
           break;
       }
     }
     if (out.isEmpty) {
-      out.add(nobodywho.Message.user(content: '你好'));
+      out.add(nobodywho.userMessage('你好'));
     }
     return out;
   }
