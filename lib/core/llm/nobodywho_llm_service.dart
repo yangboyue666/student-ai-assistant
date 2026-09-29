@@ -277,24 +277,24 @@ class NobodyWhoLlmService implements LlmService {
 
   /// 将 LlmMessage 列表转为 nobodywho 消息列表（传完整对话历史）
   ///
-  /// 2.5.0 API：使用 factory 构造函数 Message.system/user/assistant
+  /// 4.0.0 API：使用顶层函数 systemMessage/userMessage/assistantMessage
   List<nobodywho.Message> _toNobodyWhoMessages(List<LlmMessage> messages) {
     final out = <nobodywho.Message>[];
     for (final m in messages) {
       switch (m.role) {
         case 'system':
-          out.add(nobodywho.Message.system(content: m.content));
+          out.add(nobodywho.systemMessage(m.content));
           break;
         case 'user':
-          out.add(nobodywho.Message.user(content: m.content));
+          out.add(nobodywho.userMessage(m.content));
           break;
         case 'assistant':
-          out.add(nobodywho.Message.assistant(content: m.content));
+          out.add(nobodywho.assistantMessage(m.content));
           break;
       }
     }
     if (out.isEmpty) {
-      out.add(nobodywho.Message.user(content: '你好'));
+      out.add(nobodywho.userMessage('你好'));
     }
     return out;
   }
@@ -305,17 +305,8 @@ class NobodyWhoLlmService implements LlmService {
     List<LlmTool> tools = const [],
   }) async {
     await ensureLoaded();
-    final lastUser = _lastUserText(messages);
-    if (lastUser == null) return '';
-
-    // 设置完整对话历史（不含最后一条用户消息）
-    final historyMessages = messages.sublist(0, messages.length - 1);
-    final nwHistory = _toNobodyWhoMessages(historyMessages);
-    await _chat!.setChatHistory(nwHistory);
-
-    // 发送最后一条用户消息
-    final response = _chat!.ask(lastUser);
-    return await response.completed();
+    final nwMessages = _toNobodyWhoMessages(messages);
+    return await _chat!.complete(nwMessages);
   }
 
   @override
@@ -324,26 +315,9 @@ class NobodyWhoLlmService implements LlmService {
     List<LlmTool> tools = const [],
   }) async* {
     await ensureLoaded();
-    final lastUser = _lastUserText(messages);
-    if (lastUser == null) return;
-
-    // 设置完整对话历史（不含最后一条用户消息）
-    final historyMessages = messages.sublist(0, messages.length - 1);
-    final nwHistory = _toNobodyWhoMessages(historyMessages);
-    await _chat!.setChatHistory(nwHistory);
-
-    // 发送最后一条用户消息
-    final response = _chat!.ask(lastUser);
-    await for (final token in response) {
-      yield token;
-    }
-  }
-
-  String? _lastUserText(List<LlmMessage> messages) {
-    for (int i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role == 'user') return messages[i].content;
-    }
-    return null;
+    final nwMessages = _toNobodyWhoMessages(messages);
+    final result = await _chat!.complete(nwMessages);
+    yield result;
   }
 
   /// 释放模型资源
