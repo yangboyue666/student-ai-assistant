@@ -71,14 +71,16 @@ jobs:
         if: always()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.4.0
-          name: 学生智能助手 v1.4.0（AI 优化版）
+          tag_name: v1.5.0
+          name: 学生智能助手 v1.5.0（多模型 + AI 对话优化版）
           body: |
             ## 本次更新
-            - AI 模型下载入口独立成「AI 模型」页，不再占用对话历史空间
-            - 修复下载模型后发消息一直"思考"的问题
-            - 修复发消息后下载框重复出现的问题
-            - 模型服务单例化，加载失败自动降级，下载支持断点续传
+            - 多模型支持：可选 Qwen3 0.6B / 1.7B / 4B 三档模型，按需下载
+            - 千问模型真正接入对话：使用 complete() 传入完整对话历史，多轮上下文连贯
+            - 改善系统提示词：模型优先直接回答问题，减少误触发工具调用
+            - 升级 nobodywho 至 4.0.0：支持完整对话历史、Qwen3 模板变量、性能优化
+            - 下载完成后自动设为当前模型，回到对话即可使用
+            - AI 模型页展示模型列表，可下载、切换、删除
           files: artifact/*.apk
           fail_on_unmatched_files: false
         env:
