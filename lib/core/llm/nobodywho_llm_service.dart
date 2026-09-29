@@ -14,24 +14,22 @@ import 'model_manager.dart';
 
 /// 基于 nobodywho（llama.cpp）的真实端侧 LLM 服务
 ///
-/// - 加载 Qwen3-0.6B GGUF 模型（单例，模型只加载一次并常驻）
-/// - 支持流式输出
+/// - 加载用户选中的 Qwen3 GGUF 模型（单例，模型只加载一次并常驻）
+/// - 使用 complete() 传入完整对话历史，保证多轮上下文连贯
 /// - 支持原生函数调用（create_schedule / create_assignment / add_course 等）
 /// - 加载失败时先尝试回退到 CPU 推理
 class NobodyWhoLlmService implements LlmService {
   NobodyWhoLlmService._();
 
-  /// 全局唯一实例：保证模型只被加载一次
   static final NobodyWhoLlmService instance = NobodyWhoLlmService._();
 
-  /// 兼容旧调用 `NobodyWhoLlmService()`
   factory NobodyWhoLlmService() => instance;
 
   nobodywho.Chat? _chat;
+  String? _loadedModelId;
   bool _initialized = false;
   Future<void>? _loading;
 
-  /// 模型加载超时（380MB 模型在低端机上可能较慢）
   static const Duration loadTimeout = Duration(minutes: 5);
 
   @override
@@ -43,33 +41,45 @@ class NobodyWhoLlmService implements LlmService {
   bool get isLoaded => _chat != null;
 
   @override
-  String describe() => 'Qwen3-0.6B · 本地推理（nobodywho / llama.cpp）';
+  String describe() => '本地端侧模型 · 真实推理（nobodywho / llama.cpp）';
 
-  /// 确保模型已加载（幂等，并发安全）
+  /// 确保当前选中模型已加载（幂等，并发安全，模型切换时重新加载）
   Future<void> ensureLoaded() {
-    if (_chat != null) return Future<void>.value();
-    return _loading ??= _loadChat().whenComplete(() => _loading = null);
+    return _loading ??= _loadIfNeeded().whenComplete(() => _loading = null);
   }
 
-  Future<void> _loadChat() async {
-    final path = await ModelManager.instance.modelPath;
+  Future<void> _loadIfNeeded() async {
+    final model = await ModelManager.instance.currentModel;
+    if (!await ModelManager.instance.isModelDownloaded(model.id)) {
+      throw Exception('当前模型未下载，请在 AI 模型页下载模型');
+    }
+    if (_chat != null && _loadedModelId == model.id) return;
+    if (_chat != null) {
+      await dispose();
+    }
+    await _loadChat(model);
+  }
+
+  Future<void> _loadChat(ModelInfo model) async {
+    final path = await ModelManager.instance.modelPath(model.id);
     ModelManager.instance.markLoading();
 
     try {
       _chat = await _createChat(path, useGpu: true);
     } catch (_) {
-      // GPU 初始化失败时回退 CPU 推理，提升设备兼容性
       try {
         _chat = await _createChat(path, useGpu: false);
       } catch (e) {
         _chat = null;
         _initialized = false;
+        _loadedModelId = null;
         ModelManager.instance.markError('模型加载失败：$e');
         rethrow;
       }
     }
 
     _initialized = true;
+    _loadedModelId = model.id;
     ModelManager.instance.markRunning();
   }
 
@@ -78,7 +88,7 @@ class NobodyWhoLlmService implements LlmService {
     final createScheduleTool = nobodywho.Tool(
       name: 'create_schedule',
       description:
-          '创建一条日程提醒。当用户表达"明天下午3点开会"等安排时调用。'
+          '创建一条日程提醒。当用户明确表达"明天下午3点开会"等安排时调用。'
           'datetime 必须是 ISO8601 格式字符串，如 2026-09-30T15:00:00。',
       function: ({
         required String title,
@@ -238,7 +248,7 @@ class NobodyWhoLlmService implements LlmService {
       },
     );
 
-    return nobodywho.Chat.fromPath(
+    return await nobodywho.Chat.fromPath(
       modelPath: modelPath,
       systemPrompt: _systemPrompt,
       tools: [
@@ -250,23 +260,43 @@ class NobodyWhoLlmService implements LlmService {
       ],
       contextSize: 4096,
       useGpu: useGpu,
+      templateVariables: const {'enable_thinking': false},
     ).timeout(loadTimeout);
   }
 
-  static const String _systemPrompt = '''你是一个运行在用户手机上的学生智能助手，使用本地 AI 模型（Qwen3-0.6B）推理，完全离线运行。
+  static const String _systemPrompt = '''你是一个学生智能助手，运行在用户手机上，完全离线，数据不上传。
 
-你的能力：
-1. 日程管理：用户用自然语言描述时间安排时，调用 create_schedule 工具创建日程。
-2. 作业管理：用户描述作业时，调用 create_assignment 工具创建作业。
-3. 课程表管理：用户描述课程信息时，调用 add_course 工具。
-4. 学习咨询：学习方法、知识点、心理调节，直接回复。
-5. 日常聊天：和用户正常对话，回答问题。
+你首先是一个对话伙伴和学习助手。对于用户的提问、聊天、知识咨询、数学计算等，直接回答，不要调用工具。
 
-重要规则：
-- 只有当用户明确要求创建日程、作业、课程时，才调用对应工具。
-- 普通聊天、问答（如"1+1等于几"、"你好"）不要调用工具，直接回答。
-- 调用工具时，确保参数正确（时间用 ISO8601 格式）。
-- 回复保持简洁、友好，使用中文。''';
+只有当用户明确表达"帮我创建/添加/记录日程、作业、课程"等意图时，才调用对应工具：
+- "明天下午3点开会" → 调用 create_schedule
+- "高数作业截止周五" → 调用 create_assignment
+- "周三第2节英语课" → 调用 add_course
+
+对于"cos 30度等于多少"、"1+1等于几"、"你好"等问题，直接给出答案，不要调用工具。
+保持回复简洁、友好，使用中文。''';
+
+  /// 将 LlmMessage 列表转为 nobodywho 消息列表（传完整对话历史）
+  List<nobodywho.Message> _toNobodyWhoMessages(List<LlmMessage> messages) {
+    final out = <nobodywho.Message>[];
+    for (final m in messages) {
+      switch (m.role) {
+        case 'system':
+          out.add(nobodywho.Message.system(content: m.content));
+          break;
+        case 'user':
+          out.add(nobodywho.Message.user(content: m.content));
+          break;
+        case 'assistant':
+          out.add(nobodywho.Message.assistant(content: m.content));
+          break;
+      }
+    }
+    if (out.isEmpty) {
+      out.add(nobodywho.Message.user(content: '你好'));
+    }
+    return out;
+  }
 
   @override
   Future<String> complete(
@@ -274,9 +304,8 @@ class NobodyWhoLlmService implements LlmService {
     List<LlmTool> tools = const [],
   }) async {
     await ensureLoaded();
-    final lastUser = _lastUserText(messages);
-    if (lastUser == null) return '';
-    final response = _chat!.ask(lastUser);
+    final nwMessages = _toNobodyWhoMessages(messages);
+    final response = _chat!.complete(nwMessages);
     return await response.completed();
   }
 
@@ -286,24 +315,17 @@ class NobodyWhoLlmService implements LlmService {
     List<LlmTool> tools = const [],
   }) async* {
     await ensureLoaded();
-    final lastUser = _lastUserText(messages);
-    if (lastUser == null) return;
-    final response = _chat!.ask(lastUser);
+    final nwMessages = _toNobodyWhoMessages(messages);
+    final response = _chat!.complete(nwMessages);
     await for (final token in response) {
       yield token;
     }
-  }
-
-  String? _lastUserText(List<LlmMessage> messages) {
-    for (int i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role == 'user') return messages[i].content;
-    }
-    return null;
   }
 
   /// 释放模型资源
   Future<void> dispose() async {
     _chat = null;
     _initialized = false;
+    _loadedModelId = null;
   }
 }
