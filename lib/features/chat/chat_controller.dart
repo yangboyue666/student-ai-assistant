@@ -61,15 +61,22 @@ class UIMessage {
 /// 当前活跃会话 ID
 final currentSessionIdProvider = StateProvider<String?>((ref) => null);
 
-/// 当前会话消息列表（UI 状态）
+/// 嵌入式聊天（首页底部，普通模式 — 任务式，添加日程/作业/课程）
 final chatMessagesProvider =
     StateNotifierProvider<ChatMessagesNotifier, List<UIMessage>>((ref) {
-  return ChatMessagesNotifier(ref);
+  return ChatMessagesNotifier(ref, mode: ChatMode.normal);
+});
+
+/// 全屏 AI 聊天（AI 助手卡片，千问模型 — 自由聊天 + 工具调用）
+final aiChatMessagesProvider =
+    StateNotifierProvider<ChatMessagesNotifier, List<UIMessage>>((ref) {
+  return ChatMessagesNotifier(ref, mode: ChatMode.downloadedModel);
 });
 
 class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
-  ChatMessagesNotifier(Ref ref) : _ref = ref, super([]);
+  ChatMessagesNotifier(Ref ref, {required this.mode}) : _ref = ref, super([]);
   final Ref _ref;
+  final ChatMode mode;
   final _uuid = const Uuid();
 
   String? _sessionId;
@@ -157,9 +164,8 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
       ...history,
     ];
 
-    // 4) 按用户选择的模式选择后端（两个完全独立的系统）
+    // 4) 按模式选择后端（嵌入式=普通模型，全屏=千问模型）
     final allTools = AiTools.all();
-    final mode = _ref.read(chatModeProvider);
     String fullText;
     bool usedRealModel = false;
 
