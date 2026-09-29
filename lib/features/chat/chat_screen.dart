@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/colors.dart';
+import '../../core/providers.dart';
 import '../../shared/widgets/glass_app_bar.dart';
 import '../../shared/widgets/glass_card.dart';
 import '../../shared/widgets/section_indicator.dart';
@@ -76,10 +77,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatMessagesProvider);
+    final mode = ref.watch(chatModeProvider);
+    final modelDownloaded = ref.watch(modelDownloadedProvider).value ?? false;
     if (messages.isNotEmpty) _scrollToBottom();
 
     // 仅在一行内提示模型加载状态，不占用对话历史空间
-    const loadingHint = _ModelStatusHint();
+    final loadingHint = _ModelStatusHint(mode: mode);
 
     if (widget.embedded) {
       return Column(
@@ -94,6 +97,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: GlassAppBar(
+        leading: _ModeToggle(mode: mode, modelDownloaded: modelDownloaded),
         title: 'AI 助手',
         actions: [
           GlassIconButton(
@@ -312,7 +316,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 /// 模型状态轻提示：仅在模型加载中时显示一行，不占用对话历史空间
 class _ModelStatusHint extends ConsumerStatefulWidget {
-  const _ModelStatusHint();
+  final ChatMode mode;
+
+  const _ModelStatusHint({required this.mode});
 
   @override
   ConsumerState<_ModelStatusHint> createState() => _ModelStatusHintState();
@@ -332,6 +338,7 @@ class _ModelStatusHintState extends ConsumerState<_ModelStatusHint> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.mode == ChatMode.normal) return const SizedBox.shrink();
     if (_status != ModelStatus.loading) return const SizedBox.shrink();
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -350,6 +357,116 @@ class _ModelStatusHintState extends ConsumerState<_ModelStatusHint> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 左上角模式切换下拉
+class _ModeToggle extends ConsumerWidget {
+  final ChatMode mode;
+  final bool modelDownloaded;
+
+  const _ModeToggle({required this.mode, required this.modelDownloaded});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isModelMode = mode == ChatMode.downloadedModel;
+    final canUseModel = modelDownloaded;
+
+    return PopupMenuButton<ChatMode>(
+      onSelected: (m) {
+        ref.read(chatModeProvider.notifier).state = m;
+      },
+      tooltip: '切换对话模式',
+      padding: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.white.withOpacity(0.15), width: 1),
+      ),
+      color: const Color(0xFF241442),
+      elevation: 8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isModelMode ? Icons.auto_awesome_rounded : Icons.chat_bubble_rounded,
+              size: 14,
+              color: isModelMode ? AppColors.accent2 : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isModelMode ? '千问模型' : '普通模式',
+              style: TextStyle(
+                color: isModelMode ? AppColors.accent2 : AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 12,
+              color: AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (ctx) => [
+        PopupMenuItem<ChatMode>(
+          value: ChatMode.normal,
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.chat_bubble_rounded, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              const Text(
+                '普通模式',
+                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+              ),
+              const Spacer(),
+              if (mode == ChatMode.normal)
+                const Icon(Icons.check, size: 14, color: AppColors.accent2),
+            ],
+          ),
+        ),
+        PopupMenuItem<ChatMode>(
+          value: ChatMode.downloadedModel,
+          height: 36,
+          enabled: canUseModel,
+          child: Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_rounded,
+                size: 16,
+                color: canUseModel ? AppColors.accent1 : AppColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                canUseModel ? '千问模型' : '千问模型（未下载）',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: canUseModel ? AppColors.textPrimary : AppColors.textMuted,
+                ),
+              ),
+              if (!canUseModel) ...[
+                const Spacer(),
+                const Icon(Icons.download_rounded, size: 14, color: AppColors.accent4),
+              ],
+              if (canUseModel && mode == ChatMode.downloadedModel) ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: AppColors.accent2),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
