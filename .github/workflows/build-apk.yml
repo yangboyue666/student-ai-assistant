@@ -77,16 +77,18 @@ jobs:
         if: always()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.6.0
-          name: 学生智能助手 v1.6.0（模式切换 + 千问模型独立接入）
+          tag_name: v1.7.0
+          name: 学生智能助手 v1.7.0（AI入口 + 全屏千问 + 浮动圆球 + 多模型）
           body: |
             ## 本次更新
-            - 聊天页左上角新增模式切换：普通模式 / 千问模型，两个系统完全独立
-            - 普通模式：任务式 AI，自动解析日程/作业/课程管理
-            - 千问模型：自由聊天 + 工具调用，下载后即可切换使用
-            - 千问模型真正接入对话：使用 complete() 传入完整对话历史，多轮上下文连贯
-            - 多模型支持：可选 Qwen3 0.6B / 1.7B / 4B 三档模型，按需下载
-            - 使用 nobodywho 4.0.0 API（顶层函数 + complete()），改善系统提示词
+            - 主界面新增「AI 助手」卡片 → 全屏千问对话页（自由聊天/解数学题/工具调用）
+            - 底部对话框收起改为右下角浮动圆球，点击展开有动画效果
+            - 嵌入式对话框（普通模型）与全屏 AI（千问模型）完全独立
+            - 全屏 AI 页左上角新增模型切换按钮，可切换已下载的模型
+            - 输入框 +号/输入框/发送按钮重心对齐修复
+            - 新增模型：Llama 3.2 1B/3B、Gemma 2 2B、Phi-3.5 mini（共 7 个可选模型）
+            - 保留原有 3 个 Qwen3 模型（0.6B/1.7B/4B）
+            - GPU 加速启用（骁龙 Adreno GPU），nobodywho 4.0.0 API
           files: artifact/*.apk
           fail_on_unmatched_files: false
         env:
