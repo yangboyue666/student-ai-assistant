@@ -157,13 +157,13 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
       ...history,
     ];
 
-    // 4) 选择后端：已下载模型则用真实端侧 LLM，否则用离线模式匹配
+    // 4) 按用户选择的模式选择后端（两个完全独立的系统）
     final allTools = AiTools.all();
-    final useRealModel = await ModelManager.instance.isModelDownloaded();
-    var usedRealModel = useRealModel;
+    final mode = _ref.read(chatModeProvider);
     String fullText;
+    bool usedRealModel = false;
 
-    if (useRealModel) {
+    if (mode == ChatMode.downloadedModel) {
       try {
         fullText = await _streamAssistant(
           NobodyWhoLlmService(),
@@ -171,8 +171,8 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
           allTools,
           assistantId,
         );
+        usedRealModel = true;
       } catch (e) {
-        // 真实模型加载/推理失败：降级到离线模式，避免一直卡在“思考中”
         ModelManager.instance.markError(e.toString());
         usedRealModel = false;
         fullText = await _streamAssistant(
@@ -182,6 +182,14 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
           assistantId,
         );
       }
+    } else {
+      fullText = await _streamAssistant(
+        PatternBasedLlmService(),
+        llmMessages,
+        allTools,
+        assistantId,
+      );
+    }
     } else {
       fullText = await _streamAssistant(
         PatternBasedLlmService(),
