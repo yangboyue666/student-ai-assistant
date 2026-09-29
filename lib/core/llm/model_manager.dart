@@ -91,8 +91,60 @@ class ModelManager {
           'https://hf-mirror.com/NobodyWho/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf',
       fallbackUrl:
           'https://huggingface.co/NobodyWho/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf',
-      description: '最强能力，适合复杂问答与推理，需高端手机',
+      description: '最强千问，适合复杂问答与推理，需高端手机',
       recommendedRamGb: 8,
+    ),
+    ModelInfo(
+      id: 'llama3.2-1b',
+      displayName: 'Llama 3.2 1B',
+      sizeLabel: '约 750MB',
+      expectedFileSize: 750 * 1024 * 1024,
+      filename: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+      primaryUrl:
+          'https://hf-mirror.com/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+      fallbackUrl:
+          'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+      description: 'Meta 轻量模型，推理快，适合简单对话',
+      recommendedRamGb: 2,
+    ),
+    ModelInfo(
+      id: 'llama3.2-3b',
+      displayName: 'Llama 3.2 3B',
+      sizeLabel: '约 2.0GB',
+      expectedFileSize: 2000 * 1024 * 1024,
+      filename: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf',
+      primaryUrl:
+          'https://hf-mirror.com/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
+      fallbackUrl:
+          'https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
+      description: 'Meta 中等模型，对话质量好，平衡之选',
+      recommendedRamGb: 4,
+    ),
+    ModelInfo(
+      id: 'gemma2-2b',
+      displayName: 'Gemma 2 2B',
+      sizeLabel: '约 1.6GB',
+      expectedFileSize: 1600 * 1024 * 1024,
+      filename: 'gemma-2-2b-it-Q4_K_M.gguf',
+      primaryUrl:
+          'https://hf-mirror.com/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf',
+      fallbackUrl:
+          'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf',
+      description: 'Google 模型，擅长问答与摘要',
+      recommendedRamGb: 4,
+    ),
+    ModelInfo(
+      id: 'phi3.5-mini',
+      displayName: 'Phi-3.5 mini',
+      sizeLabel: '约 2.2GB',
+      expectedFileSize: 2200 * 1024 * 1024,
+      filename: 'Phi-3.5-mini-instruct-Q4_K_M.gguf',
+      primaryUrl:
+          'https://hf-mirror.com/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf',
+      fallbackUrl:
+          'https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf',
+      description: '微软模型，逻辑推理强，适合数学与代码',
+      recommendedRamGb: 4,
     ),
   ];
 
