@@ -47,7 +47,7 @@ dependencies:
   file_picker: ^8.1.4
 
   # 端侧 AI 推理（GGUF / llama.cpp，支持函数调用）
-  nobodywho: ^2.5.0
+  nobodywho: ^4.0.0
 
 dev_dependencies:
   flutter_test:
