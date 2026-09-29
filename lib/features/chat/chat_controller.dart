@@ -68,7 +68,7 @@ final chatMessagesProvider =
 });
 
 class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
-  ChatMessagesNotifier(this._ref) : super([]);
+  ChatMessagesNotifier(Ref ref) : _ref = ref, super([]);
   final Ref _ref;
   final _uuid = const Uuid();
 
