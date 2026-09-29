@@ -34,6 +34,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Ensure nobodywho 4.0.0
+        run: |
+          flutter pub deps --no-dev | grep nobodywho || true
+          flutter pub upgrade nobodywho || true
+          flutter pub deps --no-dev | grep nobodywho || true
+
       - name: Prepare debug keystore
         run: |
           mkdir -p "$HOME/.android"
@@ -80,7 +86,7 @@ jobs:
             - 千问模型：自由聊天 + 工具调用，下载后即可切换使用
             - 千问模型真正接入对话：使用 complete() 传入完整对话历史，多轮上下文连贯
             - 多模型支持：可选 Qwen3 0.6B / 1.7B / 4B 三档模型，按需下载
-            - 升级 nobodywho 至 2.5.0，改善系统提示词
+            - 使用 nobodywho 4.0.0 API（顶层函数 + complete()），改善系统提示词
           files: artifact/*.apk
           fail_on_unmatched_files: false
         env:
