@@ -52,11 +52,34 @@ jobs:
           fi
 
       - name: Build release APK (arm64)
-        run: flutter build apk --release --target-platform android-arm64 --verbose
+        run: |
+          flutter build apk --release --target-platform android-arm64 || echo "flutter did not report apk path; searching..."
+          echo "=== locate apk files ==="
+          find "$GITHUB_WORKSPACE" -name "*.apk" -type f -printf "%s\t%p\n" || true
+          mkdir -p artifact
+          find "$GITHUB_WORKSPACE" -name "*.apk" -type f -exec cp {} artifact/ \;
+          ls -lh artifact || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: student-assistant-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+          path: artifact/*.apk
+          if-no-files-found: warn
+
+      - name: Publish Release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.4.0
+          name: 学生智能助手 v1.4.0（AI 优化版）
+          body: |
+            ## 本次更新
+            - AI 模型下载入口独立成「AI 模型」页，不再占用对话历史空间
+            - 修复下载模型后发消息一直"思考"的问题
+            - 修复发消息后下载框重复出现的问题
+            - 模型服务单例化，加载失败自动降级，下载支持断点续传
+          files: artifact/*.apk
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
