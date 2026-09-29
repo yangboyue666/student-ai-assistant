@@ -77,17 +77,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatMessagesProvider);
-    final mode = ref.watch(chatModeProvider);
-    final modelDownloaded = ref.watch(modelDownloadedProvider).value ?? false;
     if (messages.isNotEmpty) _scrollToBottom();
-
-    // 仅在一行内提示模型加载状态，不占用对话历史空间
-    final loadingHint = _ModelStatusHint(mode: mode);
 
     if (widget.embedded) {
       return Column(
         children: [
-          loadingHint,
           Expanded(child: _buildMessages(messages)),
           _buildInput(),
         ],
@@ -97,7 +91,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: GlassAppBar(
-        leading: _ModeToggle(mode: mode, modelDownloaded: modelDownloaded),
         title: 'AI 助手',
         actions: [
           GlassIconButton(
@@ -115,11 +108,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: const SectionIndicator(
-                    label: '与 AI 对话',
+                    label: '任务式助手',
                     colors: [AppColors.accent1, AppColors.accent2],
                   ),
                 ),
-                loadingHint,
                 Expanded(child: _buildMessages(messages)),
                 _buildInput(),
               ],
@@ -193,12 +185,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: SafeArea(
           top: false,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              IconButton(
-                onPressed: _sending ? null : () => _showActions(context),
-                icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.accent1),
-                iconSize: 26,
+              SizedBox(
+                height: 44,
+                width: 44,
+                child: IconButton(
+                  onPressed: _sending ? null : () => _showActions(context),
+                  icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.accent1),
+                  iconSize: 24,
+                  padding: EdgeInsets.zero,
+                ),
               ),
               const SizedBox(width: 4),
               Expanded(
