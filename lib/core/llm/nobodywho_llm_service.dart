@@ -15,7 +15,7 @@ import 'model_manager.dart';
 /// 基于 nobodywho（llama.cpp）的真实端侧 LLM 服务
 ///
 /// - 加载用户选中的 Qwen3 GGUF 模型（单例，模型只加载一次并常驻）
-/// - 使用 complete() 传入完整对话历史，保证多轮上下文连贯
+/// - 使用 setChatHistory() + ask() 传入完整对话历史，保证多轮上下文连贯
 /// - 支持原生函数调用（create_schedule / create_assignment / add_course 等）
 /// - 加载失败时先尝试回退到 CPU 推理
 class NobodyWhoLlmService implements LlmService {
@@ -260,7 +260,6 @@ class NobodyWhoLlmService implements LlmService {
       ],
       contextSize: 4096,
       useGpu: useGpu,
-      templateVariables: const {'enable_thinking': false},
     ).timeout(loadTimeout);
   }
 
@@ -277,23 +276,25 @@ class NobodyWhoLlmService implements LlmService {
 保持回复简洁、友好，使用中文。''';
 
   /// 将 LlmMessage 列表转为 nobodywho 消息列表（传完整对话历史）
+  ///
+  /// 2.5.0 API：使用 factory 构造函数 Message.system/user/assistant
   List<nobodywho.Message> _toNobodyWhoMessages(List<LlmMessage> messages) {
     final out = <nobodywho.Message>[];
     for (final m in messages) {
       switch (m.role) {
         case 'system':
-          out.add(nobodywho.systemMessage(m.content));
+          out.add(nobodywho.Message.system(content: m.content));
           break;
         case 'user':
-          out.add(nobodywho.userMessage(m.content));
+          out.add(nobodywho.Message.user(content: m.content));
           break;
         case 'assistant':
-          out.add(nobodywho.assistantMessage(m.content));
+          out.add(nobodywho.Message.assistant(content: m.content));
           break;
       }
     }
     if (out.isEmpty) {
-      out.add(nobodywho.userMessage('你好'));
+      out.add(nobodywho.Message.user(content: '你好'));
     }
     return out;
   }
@@ -304,8 +305,16 @@ class NobodyWhoLlmService implements LlmService {
     List<LlmTool> tools = const [],
   }) async {
     await ensureLoaded();
-    final nwMessages = _toNobodyWhoMessages(messages);
-    final response = _chat!.complete(nwMessages);
+    final lastUser = _lastUserText(messages);
+    if (lastUser == null) return '';
+
+    // 设置完整对话历史（不含最后一条用户消息）
+    final historyMessages = messages.sublist(0, messages.length - 1);
+    final nwHistory = _toNobodyWhoMessages(historyMessages);
+    await _chat!.setChatHistory(nwHistory);
+
+    // 发送最后一条用户消息
+    final response = _chat!.ask(lastUser);
     return await response.completed();
   }
 
@@ -315,11 +324,26 @@ class NobodyWhoLlmService implements LlmService {
     List<LlmTool> tools = const [],
   }) async* {
     await ensureLoaded();
-    final nwMessages = _toNobodyWhoMessages(messages);
-    final response = _chat!.complete(nwMessages);
+    final lastUser = _lastUserText(messages);
+    if (lastUser == null) return;
+
+    // 设置完整对话历史（不含最后一条用户消息）
+    final historyMessages = messages.sublist(0, messages.length - 1);
+    final nwHistory = _toNobodyWhoMessages(historyMessages);
+    await _chat!.setChatHistory(nwHistory);
+
+    // 发送最后一条用户消息
+    final response = _chat!.ask(lastUser);
     await for (final token in response) {
       yield token;
     }
+  }
+
+  String? _lastUserText(List<LlmMessage> messages) {
+    for (int i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role == 'user') return messages[i].content;
+    }
+    return null;
   }
 
   /// 释放模型资源
