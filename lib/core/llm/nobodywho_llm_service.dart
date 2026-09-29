@@ -306,7 +306,11 @@ class NobodyWhoLlmService implements LlmService {
   }) async {
     await ensureLoaded();
     final nwMessages = _toNobodyWhoMessages(messages);
-    return await _chat!.complete(nwMessages);
+    final buf = StringBuffer();
+    await for (final token in _chat!.complete(nwMessages)) {
+      buf.write(token);
+    }
+    return buf.toString();
   }
 
   @override
@@ -316,8 +320,7 @@ class NobodyWhoLlmService implements LlmService {
   }) async* {
     await ensureLoaded();
     final nwMessages = _toNobodyWhoMessages(messages);
-    final result = await _chat!.complete(nwMessages);
-    yield result;
+    yield* _chat!.complete(nwMessages);
   }
 
   /// 释放模型资源
