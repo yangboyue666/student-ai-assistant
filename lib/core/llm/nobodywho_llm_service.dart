@@ -14,31 +14,67 @@ import 'model_manager.dart';
 
 /// 基于 nobodywho（llama.cpp）的真实端侧 LLM 服务
 ///
-/// - 加载 Qwen3-0.6B GGUF 模型
+/// - 加载 Qwen3-0.6B GGUF 模型（单例，模型只加载一次并常驻）
 /// - 支持流式输出
 /// - 支持原生函数调用（create_schedule / create_assignment / add_course 等）
+/// - 加载失败时先尝试回退到 CPU 推理
 class NobodyWhoLlmService implements LlmService {
-  NobodyWhoLlmService();
+  NobodyWhoLlmService._();
+
+  /// 全局唯一实例：保证模型只被加载一次
+  static final NobodyWhoLlmService instance = NobodyWhoLlmService._();
+
+  /// 兼容旧调用 `NobodyWhoLlmService()`
+  factory NobodyWhoLlmService() => instance;
 
   nobodywho.Chat? _chat;
   bool _initialized = false;
+  Future<void>? _loading;
+
+  /// 模型加载超时（380MB 模型在低端机上可能较慢）
+  static const Duration loadTimeout = Duration(minutes: 5);
 
   @override
   Future<bool> isReady() async {
     if (!await ModelManager.instance.isModelDownloaded()) return false;
-    return _initialized;
+    return _initialized && _chat != null;
   }
+
+  bool get isLoaded => _chat != null;
 
   @override
   String describe() => 'Qwen3-0.6B · 本地推理（nobodywho / llama.cpp）';
 
-  /// 初始化并加载模型
-  Future<void> ensureLoaded() async {
-    if (_chat != null) return;
+  /// 确保模型已加载（幂等，并发安全）
+  Future<void> ensureLoaded() {
+    if (_chat != null) return Future<void>.value();
+    return _loading ??= _loadChat().whenComplete(() => _loading = null);
+  }
+
+  Future<void> _loadChat() async {
+    final path = await ModelManager.instance.modelPath;
     ModelManager.instance.markLoading();
 
-    final path = await ModelManager.instance.modelPath;
+    try {
+      _chat = await _createChat(path, useGpu: true);
+    } catch (_) {
+      // GPU 初始化失败时回退 CPU 推理，提升设备兼容性
+      try {
+        _chat = await _createChat(path, useGpu: false);
+      } catch (e) {
+        _chat = null;
+        _initialized = false;
+        ModelManager.instance.markError('模型加载失败：$e');
+        rethrow;
+      }
+    }
 
+    _initialized = true;
+    ModelManager.instance.markRunning();
+  }
+
+  Future<nobodywho.Chat> _createChat(String modelPath,
+      {required bool useGpu}) async {
     final createScheduleTool = nobodywho.Tool(
       name: 'create_schedule',
       description:
@@ -202,8 +238,8 @@ class NobodyWhoLlmService implements LlmService {
       },
     );
 
-    _chat = await nobodywho.Chat.fromPath(
-      modelPath: path,
+    return nobodywho.Chat.fromPath(
+      modelPath: modelPath,
       systemPrompt: _systemPrompt,
       tools: [
         createScheduleTool,
@@ -213,11 +249,8 @@ class NobodyWhoLlmService implements LlmService {
         listAssignmentsTool,
       ],
       contextSize: 4096,
-      useGpu: true,
-    );
-
-    _initialized = true;
-    ModelManager.instance.markRunning();
+      useGpu: useGpu,
+    ).timeout(loadTimeout);
   }
 
   static const String _systemPrompt = '''你是一个运行在用户手机上的学生智能助手，使用本地 AI 模型（Qwen3-0.6B）推理，完全离线运行。

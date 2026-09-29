@@ -4,11 +4,13 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/theme/colors.dart';
 import '../../router/app_router.dart';
+import '../../shared/widgets/glass_app_bar.dart';
 import '../../shared/widgets/glass_card.dart';
 import '../../shared/widgets/section_indicator.dart';
 import '../../shared/widgets/shimmer_text.dart';
 import '../../shared/widgets/animated_indicators.dart';
 import '../chat/chat_screen.dart';
+import '../model/ai_model_screen.dart';
 
 class HubScreen extends ConsumerStatefulWidget {
   const HubScreen({super.key});
@@ -76,6 +78,16 @@ class _HubScreenState extends ConsumerState<HubScreen>
                                 color: AppColors.textMuted,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GlassIconButton(
+                              icon: const Icon(Icons.memory_rounded),
+                              size: 34,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AiModelScreen(),
+                                ),
                               ),
                             ),
                           ],

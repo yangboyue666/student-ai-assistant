@@ -9,6 +9,7 @@ import '../../shared/widgets/section_indicator.dart';
 import '../../shared/widgets/animated_indicators.dart';
 import '../../core/llm/llm_service.dart';
 import '../../core/llm/model_manager.dart';
+import '../model/ai_model_screen.dart';
 import 'chat_controller.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -66,17 +67,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scrollToBottom();
   }
 
+  void _openModelManager() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AiModelScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatMessagesProvider);
     if (messages.isNotEmpty) _scrollToBottom();
 
-    final modelBanner = _ModelStatusBanner();
+    // 仅在一行内提示模型加载状态，不占用对话历史空间
+    const loadingHint = _ModelStatusHint();
 
     if (widget.embedded) {
       return Column(
         children: [
-          modelBanner,
+          loadingHint,
           Expanded(child: _buildMessages(messages)),
           _buildInput(),
         ],
@@ -85,7 +93,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: const GlassAppBar(title: 'AI 助手'),
+      appBar: GlassAppBar(
+        title: 'AI 助手',
+        actions: [
+          GlassIconButton(
+            icon: const Icon(Icons.memory_rounded),
+            onTap: _openModelManager,
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           Container(decoration: const BoxDecoration(gradient: appBackgroundGradient)),
@@ -99,7 +115,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     colors: [AppColors.accent1, AppColors.accent2],
                   ),
                 ),
-                modelBanner,
+                loadingHint,
                 Expanded(child: _buildMessages(messages)),
                 _buildInput(),
               ],
@@ -278,6 +294,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 setState(() {});
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.memory_rounded, color: AppColors.accent1),
+              title: const Text('AI 模型管理'),
+              subtitle: const Text('下载 / 管理端侧千问模型'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openModelManager();
+              },
+            ),
           ],
         ),
       ),
@@ -285,195 +310,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-/// 模型下载状态横幅
-class _ModelStatusBanner extends ConsumerStatefulWidget {
+/// 模型状态轻提示：仅在模型加载中时显示一行，不占用对话历史空间
+class _ModelStatusHint extends ConsumerStatefulWidget {
+  const _ModelStatusHint();
+
   @override
-  ConsumerState<_ModelStatusBanner> createState() => _ModelStatusBannerState();
+  ConsumerState<_ModelStatusHint> createState() => _ModelStatusHintState();
 }
 
-class _ModelStatusBannerState extends ConsumerState<_ModelStatusBanner> {
-  ModelStatus _status = ModelStatus.notDownloaded;
-  double _progress = 0.0;
-  String? _error;
+class _ModelStatusHintState extends ConsumerState<_ModelStatusHint> {
+  ModelStatus _status = ModelManager.instance.status;
 
   @override
   void initState() {
     super.initState();
     _status = ModelManager.instance.status;
-    _progress = ModelManager.instance.progress;
-    _error = ModelManager.instance.error;
-    ModelManager.instance.refresh();
-
     ModelManager.instance.statusStream.listen((s) {
       if (mounted) setState(() => _status = s);
     });
-    ModelManager.instance.progressStream.listen((p) {
-      if (mounted) setState(() => _progress = p);
-    });
-  }
-
-  Future<void> _download() async {
-    setState(() => _error = null);
-    await ModelManager.instance.download();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 已就绪或运行中：显示简洁状态
-    if (_status == ModelStatus.ready || _status == ModelStatus.running) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16),
-            const SizedBox(width: 6),
-            Text(
-              '千问模型已就绪 · 离线推理',
-              style: TextStyle(color: AppColors.success, fontSize: 12),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 下载中：显示进度条
-    if (_status == ModelStatus.downloading) {
-      final pct = (_progress * 100).toStringAsFixed(0);
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: GlassCard(
-          padding: const EdgeInsets.all(12),
-          borderRadius: 16,
-          backgroundOpacity: 0.08,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent1),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '正在下载千问模型... $pct%',
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: Colors.white.withOpacity(0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent1),
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '模型约 380MB，下载完成后即可使用真实 AI',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-              ),
-            ],
+    if (_status != ModelStatus.loading) return const SizedBox.shrink();
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent1),
           ),
-        ),
-      );
-    }
-
-    // 出错
-    if (_status == ModelStatus.error) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: GlassCard(
-          padding: const EdgeInsets.all(12),
-          borderRadius: 16,
-          backgroundOpacity: 0.08,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 16),
-                  const SizedBox(width: 6),
-                  const Expanded(
-                    child: Text(
-                      '模型下载失败',
-                      style: TextStyle(color: Colors.redAccent, fontSize: 13),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _download,
-                    child: const Text('重试'),
-                  ),
-                ],
-              ),
-              if (_error != null)
-                Text(
-                  _error!,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-            ],
+          SizedBox(width: 8),
+          Text(
+            '千问模型加载中，请稍候…',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
-        ),
-      );
-    }
-
-    // 未下载：显示下载按钮
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: GlassCard(
-        padding: const EdgeInsets.all(12),
-        borderRadius: 16,
-        backgroundOpacity: 0.08,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome_rounded, color: AppColors.accent1, size: 16),
-                const SizedBox(width: 6),
-                const Expanded(
-                  child: Text(
-                    '下载千问大模型，获得更智能的对话体验',
-                    style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Qwen3-0.6B · 约 380MB · 从国内镜像下载',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _download,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent1.withOpacity(0.8),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('下载模型'),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '不下载也可使用基础 AI（模式匹配）',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

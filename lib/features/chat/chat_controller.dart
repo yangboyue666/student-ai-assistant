@@ -157,32 +157,42 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
       ...history,
     ];
 
-    // 判断使用真实模型还是模式匹配后备
-    final useRealModel = await ModelManager.instance.isModelDownloaded();
-    final LlmService llm;
-    if (useRealModel) {
-      llm = NobodyWhoLlmService();
-    } else {
-      llm = PatternBasedLlmService();
-    }
+    // 4) 选择后端：已下载模型则用真实端侧 LLM，否则用离线模式匹配
     final allTools = AiTools.all();
+    final useRealModel = await ModelManager.instance.isModelDownloaded();
+    var usedRealModel = useRealModel;
+    String fullText;
 
-    // 4) 流式接收
-    final buf = StringBuffer();
-    await for (final chunk in llm.stream(llmMessages, tools: allTools)) {
-      buf.write(chunk);
-      state = [
-        for (final m in state)
-          if (m.id == assistantId)
-            m.copyWith(content: buf.toString(), isStreaming: true)
-          else
-            m,
-      ];
-    }
-    final fullText = buf.toString();
-
-    // 真实模型（nobodywho）内部已处理工具调用，直接显示文本
     if (useRealModel) {
+      try {
+        fullText = await _streamAssistant(
+          NobodyWhoLlmService(),
+          llmMessages,
+          allTools,
+          assistantId,
+        );
+      } catch (e) {
+        // 真实模型加载/推理失败：降级到离线模式，避免一直卡在“思考中”
+        ModelManager.instance.markError(e.toString());
+        usedRealModel = false;
+        fullText = await _streamAssistant(
+          PatternBasedLlmService(),
+          llmMessages,
+          allTools,
+          assistantId,
+        );
+      }
+    } else {
+      fullText = await _streamAssistant(
+        PatternBasedLlmService(),
+        llmMessages,
+        allTools,
+        assistantId,
+      );
+    }
+
+    // 5) 真实模型（nobodywho）内部已处理工具调用，直接显示文本
+    if (usedRealModel) {
       final assistantMsg = StoredChatMessage(
         id: assistantId,
         sessionId: sid,
@@ -263,6 +273,27 @@ class ChatMessagesNotifier extends StateNotifier<List<UIMessage>> {
           createdAt: DateTime.now(),
         ),
     ];
+  }
+
+  /// 将某个 LLM 的流式输出实时写入指定的 assistant 占位消息，返回完整文本
+  Future<String> _streamAssistant(
+    LlmService llm,
+    List<LlmMessage> llmMessages,
+    List<LlmTool> tools,
+    String assistantId,
+  ) async {
+    final buf = StringBuffer();
+    await for (final chunk in llm.stream(llmMessages, tools: tools)) {
+      buf.write(chunk);
+      state = [
+        for (final m in state)
+          if (m.id == assistantId)
+            m.copyWith(content: buf.toString(), isStreaming: true)
+          else
+            m,
+      ];
+    }
+    return buf.toString();
   }
 
   Future<String> _executeTool(LlmToolCall tc) async {
