@@ -1,0 +1,45 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build release APK (arm64)
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-assistant-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
